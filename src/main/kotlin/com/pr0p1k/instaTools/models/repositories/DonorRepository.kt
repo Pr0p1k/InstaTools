@@ -1,6 +1,6 @@
-package com.pr0p1k.InstaTools.models.repositories
+package com.pr0p1k.instaTools.models.repositories
 
-import com.pr0p1k.InstaTools.models.Donor
+import com.pr0p1k.instaTools.models.Donor
 import org.springframework.data.repository.CrudRepository
 import java.util.*
 

@@ -1,4 +1,4 @@
-package com.pr0p1k.InstaTools
+package com.pr0p1k.instaTools
 
 import org.junit.Test
 import org.junit.runner.RunWith

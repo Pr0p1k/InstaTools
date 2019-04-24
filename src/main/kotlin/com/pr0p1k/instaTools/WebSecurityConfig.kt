@@ -1,4 +1,4 @@
-package com.pr0p1k.InstaTools
+package com.pr0p1k.instaTools
 
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity

@@ -1,20 +1,15 @@
-package com.pr0p1k.InstaTools
+package com.pr0p1k.instaTools
 
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.pr0p1k.InstaTools.models.Accessor
-import com.pr0p1k.InstaTools.models.Donor
+import com.pr0p1k.instaTools.models.Accessor
 import org.jsoup.Jsoup
 import org.springframework.stereotype.Component
-import org.springframework.stereotype.Controller
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.ConnectException
 import java.net.HttpURLConnection
-import java.net.NetworkInterface
 import java.net.URL
-import java.rmi.ServerException
-import kotlin.math.log
 
 @Component
 class InstagramBean {
@@ -55,7 +50,7 @@ class InstagramBean {
                 throw ConnectException("${connection.responseCode}: ${connection.responseMessage}")
             }
         }
-        return "$content"
+        return content.toString()
     }
 
     /**

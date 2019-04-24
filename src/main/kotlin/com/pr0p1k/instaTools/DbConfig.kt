@@ -1,8 +1,7 @@
-package com.pr0p1k.InstaTools
+package com.pr0p1k.instaTools
 
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean
-import org.apache.tomcat.jni.SSL.setPassword
 import org.springframework.jdbc.datasource.DriverManagerDataSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.context.annotation.Bean
@@ -36,7 +35,7 @@ class DbConfig {
     fun entityManagerFactory(): LocalContainerEntityManagerFactoryBean {
         val em = LocalContainerEntityManagerFactoryBean()
         em.dataSource = dataSource()
-        em.setPackagesToScan("com.pr0p1k.InstaTools.models")
+        em.setPackagesToScan("com.pr0p1k.instaTools.models")
         em.jpaVendorAdapter = HibernateJpaVendorAdapter()
         em.setJpaProperties(additionalProperties())
         return em

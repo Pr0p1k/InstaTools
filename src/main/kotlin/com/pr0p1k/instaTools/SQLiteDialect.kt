@@ -1,8 +1,7 @@
-package com.pr0p1k.InstaTools
+package com.pr0p1k.instaTools
 
 
 import org.hibernate.dialect.Dialect
-import org.hibernate.dialect.identity.IdentityColumnSupport
 import java.sql.Types
 
 class SQLiteDialect : Dialect() {

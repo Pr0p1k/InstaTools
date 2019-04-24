@@ -1,4 +1,4 @@
-package com.pr0p1k.InstaTools.models
+package com.pr0p1k.instaTools.models
 
 import javax.persistence.*
 

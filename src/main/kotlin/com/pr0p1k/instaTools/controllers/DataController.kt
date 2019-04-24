@@ -1,11 +1,10 @@
-package com.pr0p1k.InstaTools.controllers
+package com.pr0p1k.instaTools.controllers
 
-import com.fasterxml.jackson.databind.JsonNode
-import com.pr0p1k.InstaTools.InstagramBean
-import com.pr0p1k.InstaTools.models.Acceptor
-import com.pr0p1k.InstaTools.models.Donor
-import com.pr0p1k.InstaTools.models.repositories.AcceptorRepository
-import com.pr0p1k.InstaTools.models.repositories.DonorRepository
+import com.pr0p1k.instaTools.InstagramBean
+import com.pr0p1k.instaTools.models.Acceptor
+import com.pr0p1k.instaTools.models.Donor
+import com.pr0p1k.instaTools.models.repositories.AcceptorRepository
+import com.pr0p1k.instaTools.models.repositories.DonorRepository
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
@@ -27,6 +26,7 @@ class DataController {
     fun userList(): Iterable<Donor> {
         return donorRepository.findAll()
     }
+
     @GetMapping("acceptors")
     fun donorList(): Iterable<Acceptor> {
         return acceptorRepository.findAll()
@@ -34,7 +34,10 @@ class DataController {
 
     @GetMapping("add")
     fun addDonor(@RequestParam login: String) {
-        val donor = Donor((Math.random() * 1000).toInt(),login, true)
+        val json = instagram.getJsonNode(login)
+        val profileInfo = json["entry_data"]["ProfilePage"][0]["graphql"]["user"]
+        val id = profileInfo["id"].asText().toLong()
+        val donor = Donor(id, login, !profileInfo["is_private"].asBoolean(), profileInfo.toString())
         donorRepository.save(donor)
     }
 
@@ -46,7 +49,7 @@ class DataController {
     @GetMapping("test")
     fun lol(@RequestParam login: String): String {
         val kek = instagram.getJsonNode(login)
-        return "kek"
+        return kek.toString()
     }
 
     @GetMapping("add_acceptor")
