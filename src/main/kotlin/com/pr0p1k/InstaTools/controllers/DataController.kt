@@ -72,7 +72,7 @@ class DataController {
         //it should check the date
         val updates = StringBuilder()
         acceptorRepository.findById(id).get().listOfDonors.forEach {
-            updates.append(instagram.getRawJson(it.login))
+            if (it is Donor) updates.append(instagram.getRawJson(it.login))
         }
         return updates.toString()
     }
