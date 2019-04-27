@@ -1,8 +1,13 @@
 package com.pr0p1k.instaTools.controllers
 
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.node.ArrayNode
+import com.fasterxml.jackson.databind.node.JsonNodeFactory
 import com.pr0p1k.instaTools.InstagramBean
 import com.pr0p1k.instaTools.models.Acceptor
 import com.pr0p1k.instaTools.models.Donor
+import com.pr0p1k.instaTools.models.Source
 import com.pr0p1k.instaTools.models.repositories.AcceptorRepository
 import com.pr0p1k.instaTools.models.repositories.DonorRepository
 import org.springframework.beans.factory.annotation.Autowired
@@ -11,6 +16,8 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import java.lang.StringBuilder
+import java.time.LocalDateTime
+import java.time.ZoneOffset
 
 @RestController
 class DataController {
@@ -38,6 +45,7 @@ class DataController {
         val profileInfo = json["entry_data"]["ProfilePage"][0]["graphql"]["user"]
         val id = profileInfo["id"].asText().toLong()
         val donor = Donor(id, login, !profileInfo["is_private"].asBoolean(), profileInfo.toString())
+        donor.lastCheckDate = LocalDateTime.now().minusDays(30) // TODO change that
         donorRepository.save(donor)
     }
 
@@ -72,10 +80,18 @@ class DataController {
 
     @GetMapping("get_updates")
     fun getUpdates(@RequestParam id: Int): String {
-        //it should check the date
-        val updates = StringBuilder()
-        acceptorRepository.findById(id).get().listOfDonors.forEach {
-            if (it is Donor) updates.append(instagram.getRawJson(it.login))
+        val updates = ObjectMapper().createArrayNode()
+        val list = acceptorRepository.findById(id).get().listOfDonors
+        for (donor in list) {
+            if (donor is Donor) {
+                val posts = instagram.getPosts(donor.login).filter {
+                    LocalDateTime.ofEpochSecond(
+                            it["node"]["taken_at_timestamp"].asLong(),
+                            0, ZoneOffset.UTC)
+                            .isAfter(donor.lastCheckDate)
+                }
+                updates.addAll(posts)
+            }
         }
         return updates.toString()
     }

@@ -64,6 +64,11 @@ class InstagramBean {
                 .data().substringAfter("= ")
     }
 
+    fun getPosts(login: String): JsonNode {
+        return getJsonNode(login)["entry_data"]["ProfilePage"]
+                .get(0)["graphql"]["user"]["edge_owner_to_timeline_media"]["edges"]
+    }
+
     fun getJsonNode(login: String): JsonNode {
         return ObjectMapper().readTree(getRawJson(login))
     }
