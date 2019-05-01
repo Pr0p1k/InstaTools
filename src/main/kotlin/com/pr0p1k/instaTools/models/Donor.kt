@@ -6,8 +6,8 @@ import javax.persistence.*
 import kotlin.collections.ArrayList
 
 @Entity
-data class Donor(val donorId: Long, val login: String, var open: Boolean, var profileInfo: String): Source() {
-    var accessors: ArrayList<Accessor> = arrayListOf()
+data class Donor(val donorId: Long, val login: String, var open: Boolean): Source() {
+    var accessors = mutableListOf<Accessor>()
     var lastCheckDate: LocalDateTime? = null
     @OneToMany
     val posts = mutableListOf<Post>()
