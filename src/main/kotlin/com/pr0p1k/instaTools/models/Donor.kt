@@ -7,6 +7,7 @@ import kotlin.collections.ArrayList
 
 @Entity
 data class Donor(val donorId: Long, val login: String, var open: Boolean): Source() {
+    @OneToMany
     var accessors = mutableListOf<Accessor>()
     var lastCheckDate: LocalDateTime? = null
     @OneToMany

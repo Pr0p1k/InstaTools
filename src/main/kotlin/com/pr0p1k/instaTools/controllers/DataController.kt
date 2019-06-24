@@ -1,5 +1,7 @@
 package com.pr0p1k.instaTools.controllers
 
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.pr0p1k.instaTools.InstagramBean
 import com.pr0p1k.instaTools.models.Acceptor
 import com.pr0p1k.instaTools.models.Donor
@@ -13,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import java.time.LocalDateTime
+import com.pr0p1k.instaTools.InstagramBean.AuthResult.Status.*
 
 @RestController
 class DataController {
@@ -25,7 +28,7 @@ class DataController {
     lateinit var acceptorRepository: AcceptorRepository
     @Autowired
     lateinit var accessorRepository: AccessorRepository
-
+    val mapper = ObjectMapper()
 
     @GetMapping("donors")
     fun userList(): Iterable<Donor> {
@@ -65,23 +68,44 @@ class DataController {
 
     @GetMapping("add_accessor")
     fun addAccessor(@RequestParam login: String, @RequestParam password: String): ResponseEntity<String> {
-        try {
-            val accessor = instagram.authInInstagram(login, password)
-            accessorRepository.save(accessor)
-        } catch (e: Exception) {
-            return ResponseEntity.status(500).body("{\"message\":\"${e.message}\"}")
+        val response = { confirm: Boolean, auth: Boolean, user: Boolean ->
+            mapper.createObjectNode()
+                    .put("confirmation", confirm)
+                    .put("authorized", auth)
+                    .put("user", user)
         }
-        return ResponseEntity.ok("{\"message\":\"ok\"}")
+        return try {
+            val authResult = instagram.authInInstagram(login, password)
+            when (authResult.status) {
+                SUCCESS -> {
+                    accessorRepository.save(authResult.accessor!!)
+                    ResponseEntity.ok(response(false, true, true).toString())
+                }
+                WRONG_PASSWORD -> ResponseEntity.ok(response(false, false, true).toString())
+                WRONG_USERNAME -> ResponseEntity.ok(response(false, false, false).toString())
+                NEED_CONFIRMATION -> ResponseEntity.ok(response(true, false, true).toString())
+            }
+        } catch (e: Exception) {
+            ResponseEntity.status(500).body(mapper.createObjectNode()
+                    .put("error", e.message).toString())
+        }
+    }
+
+    @GetMapping("confirm_accessor")
+    fun confirmAccessor(@RequestParam login: String, @RequestParam code: String) {
+        val result = instagram.sendConfirmation(login, code) // TODO wrap
+        if (result.accessor != null)
+            accessorRepository.save(result.accessor)
     }
 
     @PostMapping("add_donors_accessor")
     fun addDonorsAcceptor(@RequestParam donor: String, @RequestParam accessor: String): ResponseEntity<String> {
-        val donor = donorRepository.findByLogin(donor)
-        val accessor = accessorRepository.findByLogin(accessor)
-        if (donor.isEmpty || accessor.isEmpty)
+        val donorObject = donorRepository.findByLogin(donor)
+        val accessorObject = accessorRepository.findByLogin(accessor)
+        if (!donorObject.isPresent || !accessorObject.isPresent)
             return ResponseEntity.status(404).body("{\"message\":\"Something wasn't found\"}")
-        donor.get().accessors.add(accessor.get())
-        donorRepository.save(donor.get())
+        donorObject.get().accessors.add(accessorObject.get())
+        donorRepository.save(donorObject.get())
         return ResponseEntity.ok("{\"message\":\"ok\"}")
     }
 
@@ -89,7 +113,7 @@ class DataController {
     fun addDonorInList(@RequestParam id: Int, @RequestParam login: String): ResponseEntity<String> {
         val acceptor = acceptorRepository.findById(id)
         val donor = donorRepository.findByLogin(login)
-        if (donor.isEmpty || acceptor.isEmpty)
+        if (!donor.isPresent || !acceptor.isPresent)
             return ResponseEntity.status(404).body("{\"message\":\"Something wasn't found\"}")
         acceptor.get().listOfDonors.add(donor.get())
         acceptorRepository.save(acceptor.get())
