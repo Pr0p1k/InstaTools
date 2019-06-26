@@ -1,6 +1,5 @@
 package com.pr0p1k.instaTools.controllers
 
-import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.pr0p1k.instaTools.InstagramBean
 import com.pr0p1k.instaTools.models.Acceptor
@@ -31,12 +30,12 @@ class DataController {
     val mapper = ObjectMapper()
 
     @GetMapping("donors")
-    fun userList(): Iterable<Donor> {
+    fun donorList(): Iterable<Donor> {
         return donorRepository.findAll()
     }
 
     @GetMapping("acceptors")
-    fun donorList(): Iterable<Acceptor> {
+    fun acceptorList(): Iterable<Acceptor> {
         return acceptorRepository.findAll()
     }
 
@@ -118,6 +117,20 @@ class DataController {
         acceptor.get().listOfDonors.add(donor.get())
         acceptorRepository.save(acceptor.get())
         return ResponseEntity.ok("{\"message\":\"ok\"}")
+    }
+
+    @GetMapping("get_medias")
+    fun getMedias(login: String): ResponseEntity<String> {
+        val donor = donorRepository.findByLogin(login).orElseThrow { IllegalArgumentException() }
+        val accessor = if (donor.open) {
+            val i = (Math.random() * accessorRepository.count()).toInt()
+            val iterator = accessorRepository.findAll().iterator()
+            while (i > 0) iterator.next()
+            iterator.next()
+        } else donor.accessors.random()
+        val medias = instagram.getMedias(donor, accessor)
+        return if (medias.isPresent) ResponseEntity.ok(medias.get())
+        else ResponseEntity.status(403).body("") // TODO
     }
 
 //    @GetMapping("get_updates")

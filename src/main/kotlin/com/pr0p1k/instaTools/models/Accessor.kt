@@ -9,7 +9,7 @@ import javax.persistence.GenerationType
 import kotlin.collections.HashMap
 
 @Entity
-data class Accessor(var login: String, var csrfToken: String, var rolloutHash: String) {
+data class Accessor(var login: String, var csrfToken: String, var rolloutHash: String, var checkUrl: String = "") {
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     var id: Int = 0

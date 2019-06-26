@@ -3,6 +3,7 @@ package com.pr0p1k.instaTools
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.pr0p1k.instaTools.models.Accessor
+import com.pr0p1k.instaTools.models.Donor
 import com.pr0p1k.instaTools.models.Post
 import org.jsoup.Jsoup
 import org.slf4j.LoggerFactory
@@ -14,23 +15,24 @@ import java.net.ConnectException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.time.LocalDateTime
+import java.util.*
 import kotlin.math.log
 
 
 @Component
 class InstagramBean {
     val loginUrl = "https://www.instagram.com/accounts/login/ajax/"
-    val confirmationUrl = "https://www.instagram.com/challenge/10742181112/im72yMstkQ/" // TODO trouble
     val mediasUrl = "https://instagram.com/graphql/query/?query_id=17888483320059182&id={{userId}}&first={{count}}&after={{maxId}}"
     val baseUrl = "https://www.instagram.com"
+    val loginPageUrl = "https://www.instagram.com/accounts/login/?source=auth_switcher"
     var logger = LoggerFactory.getLogger(InstagramBean::class.java)
     val mapper = ObjectMapper()
 
     /**
      * Writes page's content to StringBuilder
      */
-    private fun readContent(connection: HttpURLConnection): String {
-        val input = BufferedReader(InputStreamReader(connection.inputStream))
+    private fun readContent(connection: HttpURLConnection, error: Boolean = false): String {
+        val input = BufferedReader(InputStreamReader(if (error) connection.errorStream else connection.inputStream))
         val content = java.lang.StringBuilder()
         input.forEachLine {
             content.append(it)
@@ -77,9 +79,7 @@ class InstagramBean {
     fun getRawJson(login: String): String {
         return Jsoup
                 .parse(open(login))
-                .body()
-                .getElementsByTag("script")[0]
-                .data().substringAfter("= ")
+                .body().data().substringAfter("window._sharedData = ").substringBefore("</script>")
     }
 
     fun getPosts(id: Long, sessionId: String, count: Int = 100, maxId: String = ""): List<Post> {
@@ -132,56 +132,72 @@ class InstagramBean {
                     !responseNode["user"].asBoolean() -> AuthResult(null, AuthResult.Status.WRONG_USERNAME)
                     !responseNode["authenticated"].asBoolean() -> AuthResult(Accessor(login, csrfToken, rolloutHash), AuthResult.Status.WRONG_PASSWORD)
                     else -> {
-                        // TODO put csrf and hash into an object an save it
                         val sessionId = connection.getHeaderField("Set-Cookie").substringAfter("sessionid=").substringBefore(";")
                         // expiration date is now + 364 days
                         AuthResult(Accessor(login, csrfToken, rolloutHash, sessionId, LocalDateTime.now().plusDays(364)), AuthResult.Status.SUCCESS)
                     }
                 }
-
             }
-            400 -> Accessor(login, csrfToken, rolloutHash).apply {
-                Accessor.confirmationQueue.put(login, this) // TODO not accessor, but what?
-                prepareConnection(confirmationUrl, "GET",
-                        params = *arrayOf("referer", confirmationUrl, "X-CSRFToken", csrfToken,
-                                "X-Instagram-AJAX", rolloutHash, "Content-Type", "application/x-www-form-urlencoded")).responseCode // TODO ?
-                prepareConnection(confirmationUrl, "POST", "choice: 1".toByteArray(),
-                        params = *arrayOf("referer", confirmationUrl, "X-CSRFToken", csrfToken,
-                                "X-Instagram-AJAX", rolloutHash, "Content-Type", "application/x-www-form-urlencoded")).responseCode
-                return AuthResult(this, AuthResult.Status.NEED_CONFIRMATION)
-            } // TODO would it even work
+            400 -> {
+                val checkUrl = baseUrl + mapper.readTree(readContent(connection, true))["checkpoint_url"].toString().removeSurrounding("\"")
+                val accessor = Accessor(login, csrfToken, rolloutHash, checkUrl)
+                Accessor.confirmationQueue[login] = accessor
+                val get = prepareConnection(checkUrl, "GET",
+                        params = *arrayOf("referer", loginPageUrl, "cookie", "csrftoken=$csrfToken;"))
+                val post = prepareConnection(checkUrl, "POST", "choice=1".toByteArray(),
+                        params = *arrayOf("referer", checkUrl, "cookie", "csrftoken=$csrfToken;", "x-csrftoken", csrfToken,
+                                "X-Instagram-AJAX", rolloutHash, "Content-Type", "application/x-www-form-urlencoded"))
+                logger.info(get.responseMessage + " " + post.responseMessage)
+                return AuthResult(accessor, AuthResult.Status.NEED_CONFIRMATION)
+            }
             else -> throw ConnectException("${connection.responseCode}: ${connection.responseMessage}")
         }
     }
 
     fun sendConfirmation(login: String, code: String): AuthResult {
         val accessor = Accessor.confirmationQueue.remove(login) ?: throw IllegalArgumentException("invalid login")
-        val connection = prepareConnection(confirmationUrl, "POST", "security_code: $code".toByteArray(),
-                params = *arrayOf("referer", confirmationUrl, "X-CSRFToken", accessor.csrfToken,
-                        "X-Instagram-AJAX", accessor.rolloutHash, "Content-Type", "application/x-www-form-urlencoded"))
+        val connection = prepareConnection(accessor.checkUrl, "POST", "security_code=$code".toByteArray(),
+                params = *arrayOf("referer", accessor.checkUrl,
+                        "X-CSRFToken", accessor.csrfToken,
+                        "cookie", "csrftoken=${accessor.csrfToken}; rur=PRN; mid=XROVYwAEAAG0TAjjRsGfK-SP7o0J",
+                        "x-requested-with", "XMLHttpRequest",
+                        "content-length", "20",
+                        "origin", baseUrl,
+                        "X-Instagram-AJAX", accessor.rolloutHash,
+                        "x-ig-app-id", "936619743392459",
+                        "user-agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/537.36",
+
+                        "Content-Type", "application/x-www-form-urlencoded"))
         return when (connection.responseCode) {
             200 -> {
+                logger.info("${connection.responseCode}: ${connection.responseMessage}: ${readContent(connection)}")
                 accessor.sessionId = connection.getHeaderField("Set-Cookie")
                         .substringAfter("sessionid=").substringBefore(";")
                 AuthResult(accessor, AuthResult.Status.SUCCESS)
             }
-            else -> AuthResult(accessor, AuthResult.Status.NEED_CONFIRMATION)
+            else -> {
+                logger.info("${connection.responseCode}: ${connection.responseMessage}: ${readContent(connection, true)}")
+                AuthResult(accessor, AuthResult.Status.NEED_CONFIRMATION)
+            }
         }
     }
 
     /**
-     * Gets medias of an account/tag/etc. Decides whether to use accessor or not
+     * Gets medias of an account via accessor's cookie
      */
-    fun getMedias(): AccessResult {
+    fun getMedias(donor: Donor, accessor: Accessor): Optional<String> {
 
-        TODO()
-    }
+        val connection = prepareConnection(mediasUrl, "GET",
+                params = *arrayOf("cookie", "sessionid=${accessor.sessionId}; csrftoken=${accessor.csrfToken}"))
+        when (connection.responseCode) {
+            200 -> {
 
-    data class AccessResult(val status: Status) {
-        enum class Status {
-            SUCCESS,
-            RESTRICTED
+            }
+            else -> {
+
+            }
         }
+        TODO()
     }
 
     data class AuthResult(val accessor: Accessor?, val status: Status) {

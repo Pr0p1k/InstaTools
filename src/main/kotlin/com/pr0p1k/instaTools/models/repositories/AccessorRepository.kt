@@ -6,4 +6,6 @@ import java.util.*
 
 interface AccessorRepository : CrudRepository<Accessor, Int> {
     fun findByLogin(login: String): Optional<Accessor>
+
+
 }
